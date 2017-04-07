@@ -1,2 +1,2 @@
-var puzzle = require('./puzzle.js');
-//..console.log(puzzle); 
+//var puzzle = require('./puzzle.js');
+//console.log(puzzle);

@@ -3,7 +3,7 @@ var _ = require('underscore');
 var jsSHA  = require('jssha');
 
 // 128-bit key (16 bytes * 8 bits/byte = 128 bits)
-const SIZE_OF_RANDOM_STR = 16;
+const NB_BYTES = 16;
 const NB_TIMES_TO_HASH = 1000;
 
 /*
@@ -28,8 +28,8 @@ Cette fonction génère une paire pre_puzzle_key & secret_key accompagnée de so
 @return: un objet contenant la paire pre_puzzle_key & secret_key générée ainsi que l'index qui va avec
 */
 function genPair(_index){
-    var pre_puzzle_key = randomString(SIZE_OF_RANDOM_STR);
-    var secret_key = randomString(SIZE_OF_RANDOM_STR);
+    var pre_puzzle_key = randomString(NB_BYTES);
+    var secret_key = randomString(NB_BYTES);
 
     return {
         pre_puzzle_key : pre_puzzle_key,
@@ -55,6 +55,7 @@ function genPairs(N){
 
 /*
 Cette fonction applique récursivement la fonction de hachage SHA-1 sur le "pre_puzzle_key" et ce "nbTimesToHash" fois.
+Le résultat du hachage est tronqué de sorte à avoir une clé sous un tableau de 128bits (16 éléments).
 @param: pre_puzzle_key, la chaine de caractère à hacher récursivement
 @return: puzzle_key = SHA-1 ^ 1000(pre_puzzle_key)
 */
@@ -66,25 +67,37 @@ function genPuzzlegKey(pre_puzzle_key){
     var table = _.toArray(hashedPrePuzzleKey);
     var hash = [];
 
-    for(i=0;i < SIZE_OF_RANDOM_STR; i++){
+    for(i = 0; i < NB_BYTES; i++){
         hash.push(table[i]);
     }
 
     return hash;
 }
 
+/*
+Cette fonction génère un puzzle cryptographique. Pour ce faire le chiffrement symétrique AES est utilisé.
+Le mode d'opération choisi parmi ceux proposés est le CTR.
+@param: toEncrypt, le message à encrypter
+@param: puzzle_key, la clé de 128bits utilisées pour l'encription
+*/
+function genPuzzle(toEncrypt, puzzle_key){
+    var message = toEncrypt.secret_key.concat(toEncrypt.index);
+    var messageBytes = aesjs.utils.utf8.toBytes(message);
 
-function puzzle(_object, puzzle_key){
-    var Imessage = _object.secret_key.concat(_object.index);
-    var textBytes = aesjs.utils.utf8.toBytes(Imessage);
     // The counter is optional, and if omitted will begin at 1
-    var aesCtr = new aesjs.ModeOfOperation.ctr(puzzle_key, new aesjs.Counter(5));    
-    var encryptedBytes = aesCtr.encrypt(textBytes);    
+    var aesCtr = new aesjs.ModeOfOperation.ctr(puzzle_key, new aesjs.Counter(5));
+
+    var encryptedBytes = aesCtr.encrypt(messageBytes);
     return aesjs.utils.hex.fromBytes(encryptedBytes);
 }
  
 
-/*var obj = genPair(1);
+// ----------------------------------- MAIN -----------------------------------
+
+var obj = genPair(1);
 var tab = genPuzzlegKey(obj.pre_puzzle_key); 
-console.log(puzzle(obj, tab));*/
-//console.log(hash);
+var puzzle = genPuzzle(obj, tab);
+
+console.log(obj);
+console.log("puzzle_key: " + tab + "\tsize: " + tab.length);
+console.log("puzzle: " + puzzle + "\tsize: " + puzzle.length);
