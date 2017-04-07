@@ -1,9 +1,10 @@
 var aesjs = require('aes-js');
 var _ = require('underscore');
-var sha256 = require('sha256');
+var jsSHA  = require('jssha');
 
 // 128-bit key (16 bytes * 8 bits/byte = 128 bits)
 const SIZE_OF_RANDOM_STR = 16;
+const NB_TIMES_TO_HASH = 1000;
 
 /*
 Cette fonction génère aléatoirement une chaine de caractère de longueur "length".
@@ -54,28 +55,36 @@ function genPairs(N){
 
 /*
 Cette fonction applique récursivement la fonction de hachage SHA-1 sur le "pre_puzzle_key" et ce "nbTimesToHash" fois.
-@param: nbTimesToHash, le nombre de fois que la fonction SHA-1 doit être appliqué
 @param: pre_puzzle_key, la chaine de caractère à hacher récursivement
 @return: puzzle_key = SHA-1 ^ 1000(pre_puzzle_key)
 */
-function hashPrePuzzleKey(nbTimesToHash, pre_puzzle_key){
+function genPuzzlegKey(pre_puzzle_key){  
+    var hashMap = {numRounds : NB_TIMES_TO_HASH, encoding : "UTF8"}
+    var shaObj = new jsSHA("SHA-1", "TEXT", hashMap);  
+    shaObj.update(pre_puzzle_key);
+    var hashedPrePuzzleKey = shaObj.getHash("ARRAYBUFFER");
+    var table = _.toArray(hashedPrePuzzleKey);
+    var hash = [];
 
-    if(nbTimesToHash == 0){
-        return arguments[1];
-    }else{
-        return hashPrePuzzleKey(--nbTimesToHash, sha256(pre_puzzle_key));
+    for(i=0;i < SIZE_OF_RANDOM_STR; i++){
+        hash.push(table[i]);
     }
-}
 
-/*
-Cette fonction génère le "puzzle_key"
-@param: nbTimesToHash, le nombre de fois que la fonction de hachage doit être appliqué
-@param: pre_puzzle_key, la chaine de caractère à hacher récursivement
-*/
-function genPuzzleKey(nbTimesToHash, pre_puzzle_key){
-    var hashedPrePuzzleKey = hashPrePuzzleKey(nbTimesToHash, pre_puzzle_key);
-
-    return hashedPrePuzzleKey.substring(0, SIZE_OF_RANDOM_STR*2);
+    return hash;
 }
 
 
+function puzzle(_object, puzzle_key){
+    var Imessage = _object.secret_key.concat(_object.index);
+    var textBytes = aesjs.utils.utf8.toBytes(Imessage);
+    // The counter is optional, and if omitted will begin at 1
+    var aesCtr = new aesjs.ModeOfOperation.ctr(puzzle_key, new aesjs.Counter(5));    
+    var encryptedBytes = aesCtr.encrypt(textBytes);    
+    return aesjs.utils.hex.fromBytes(encryptedBytes);
+}
+ 
+
+/*var obj = genPair(1);
+var tab = genPuzzlegKey(obj.pre_puzzle_key); 
+console.log(puzzle(obj, tab));*/
+//console.log(hash);
