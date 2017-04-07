@@ -66,4 +66,3 @@ function hashPrePuzzleKey(nbTimesToHash, pre_puzzle_key){
         return hashPrePuzzleKey(--nbTimesToHash, sha256(pre_puzzle_key));
     }
 }
-
