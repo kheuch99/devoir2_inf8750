@@ -77,3 +77,5 @@ function genPuzzleKey(nbTimesToHash, pre_puzzle_key){
 
     return hashedPrePuzzleKey.substring(0, SIZE_OF_RANDOM_STR*2);
 }
+
+
