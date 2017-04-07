@@ -67,3 +67,13 @@ function hashPrePuzzleKey(nbTimesToHash, pre_puzzle_key){
     }
 }
 
+/*
+Cette fonction génère le "puzzle_key"
+@param: nbTimesToHash, le nombre de fois que la fonction de hachage doit être appliqué
+@param: pre_puzzle_key, la chaine de caractère à hacher récursivement
+*/
+function genPuzzleKey(nbTimesToHash, pre_puzzle_key){
+    var hashedPrePuzzleKey = hashPrePuzzleKey(nbTimesToHash, pre_puzzle_key);
+
+    return hashedPrePuzzleKey.substring(0, SIZE_OF_RANDOM_STR*2);
+}
