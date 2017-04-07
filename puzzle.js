@@ -1,6 +1,7 @@
 var aesjs = require('aes-js');
-var _ = require('underscore');
-var jsSHA  = require('jssha');
+var _     = require('underscore');
+var jsSHA = require('jssha');
+var now   = require("performance-now")
 
 const N                = 5;       // Les n paires à générer
 const NB_BYTES         = 16;        // 128-bit key (16 bytes * 8 bits/byte = 128 bits)
@@ -77,8 +78,9 @@ function genPuzzleKey(pre_puzzle_key){
 /*
 Cette fonction génère un puzzle cryptographique. Pour ce faire le chiffrement symétrique AES est utilisé.
 Le mode d'opération choisi parmi ceux proposés est le CTR.
-@param: toEncrypt, le message à encrypter
-@param: puzzle_key, la clé de 128bits utilisées pour l'encription
+@param: secretKey, la clé secrète à encrypter
+@param: index, l'index à encrypter
+@param: puzzle_key, la clé de 128bits utilisée pour l'encription
 */
 function genPuzzle(secretKey, index, puzzle_key){
     var message = secretKey.concat(index);
@@ -91,6 +93,33 @@ function genPuzzle(secretKey, index, puzzle_key){
     return aesjs.utils.hex.fromBytes(encryptedBytes);
 }
 
+/*
+Cette fonction decrypte un puzzle cryptographique. Pour ce faire le chiffrement symétrique AES est utilisé.
+Le mode d'opération choisi parmi ceux proposés est le CTR.
+@param: message, le message à decrypter
+@param: puzzle_key, la clé de 128bits utilisée pour l'encription
+*/
+function decPuzzle(message, puzzle_key){
+    // When ready to decrypt the hex string, convert it back to bytes
+    var encryptedBytes = aesjs.utils.hex.toBytes(message);
+
+    // The counter mode of operation maintains internal state, so to decrypt a new instance must be instantiated.
+    var aesCtr = new aesjs.ModeOfOperation.ctr(puzzle_key, new aesjs.Counter(5));
+    var decryptedBytes = aesCtr.decrypt(encryptedBytes);
+
+    // Convert our bytes back into text
+    return aesjs.utils.utf8.fromBytes(decryptedBytes);
+}
+
+/*
+Cette fonction retourne aléatoirement un chiffre entre 0 et N
+@param: N, le nombre maximum des chiffres pouvant être générer
+*/
+function randPairToDecrypt(N){
+    //return Math.floor((Math.random() * (N-1)) + 0);
+    return _.random(0, N-1);
+}
+
 
 // ----------------------------------- Class: Entité -----------------------------------
 /*
@@ -99,16 +128,27 @@ Entity: les entités Alice & Bob du protocole.
 function Entity(message, size) {
     this.pairs = message;
     this.n = size;
+    this.secret_key = "";
+    this.index = -1;
     this.sendMsg = function(Entity) { Entity.pairs = message; Entity.n = size;};
-    this.receiveMsg = function(message, n) { this.pairs = message; this.n = size;};
+    this.receiveMsg = function(secretKey, i) { this.secret_key = secretKey; this.index = i;};
 }
 
 // ----------------------------------- MAIN -----------------------------------
 
+console.log("INF8750 - Devoir 2, Exercice 3");
+console.log("Simulation du temps de calcul nécessaire à Alice et Bob pour réaliser le protocole dans sa version originale.\n");
+
+console.log("Execution du protocole pour N = " + N + "\n");
+
+var startTime = now();
+
 // Etape 1: génération des n paires (pre_puzzle_key, secret_key, index)
+console.log("Etape 1: génération des n paires (pre_puzzle_key, secret_key, index) en cours...");
 var nPairs  = genPairs(N);
 
-// Etape 2: génération des  n puzzles cryptographiques
+// Etape 2: génération des n puzzles cryptographiques
+console.log("Etape 2: génération des n puzzles cryptographiques en cours...");
 var puzzles = [];
 for(var i = 0; i < N; i++){
     var pre_puzzle_key = nPairs[i].pre_puzzle_key;
@@ -125,6 +165,7 @@ for(var i = 0; i < N; i++){
 }
 
 // Etape 3: envoi du message à Bob
+console.log("Etape 3: envoi du message à Bob en cours...");
 var pairsToSend = [];
 for(var i = 0; i < N; i++){
     var pre_puzzle_key = nPairs[i].pre_puzzle_key;
@@ -132,24 +173,38 @@ for(var i = 0; i < N; i++){
 
     pairsToSend.push({pre_puzzle_key: pre_puzzle_key, puzzle: puzzle});
 
-    console.log("pre_puzzle_key " + i + " : " + pre_puzzle_key);
-    console.log("puzzle " + i + " : " + puzzle + "\tsize: " + puzzle.length);
+    console.log("i = " + i + " pre_puzzle_key: " + pre_puzzle_key + "-> puzzle: " + puzzle + "\tsize: " + puzzle.length);
 }
 
-console.log("PairsToSend 0 : " + pairsToSend[0].pre_puzzle_key + " -> " + pairsToSend[0].puzzle);
-console.log("PairsToSend 1 : " + pairsToSend[1].pre_puzzle_key + " -> " + pairsToSend[1].puzzle);
-console.log("PairsToSend 2 : " + pairsToSend[2].pre_puzzle_key + " -> " + pairsToSend[2].puzzle);
-console.log("PairsToSend 3 : " + pairsToSend[3].pre_puzzle_key + " -> " + pairsToSend[3].puzzle);
-console.log("PairsToSend 4 : " + pairsToSend[4].pre_puzzle_key + " -> " + pairsToSend[4].puzzle);
-
-// Création des entités du protocle
 var Alice = new Entity(_.shuffle(pairsToSend), N);      // _.shuffle(list): pour permutter les éléments de la liste
 var Bob   = new Entity();
 
 Alice.sendMsg(Bob);
-console.log("Bob's pair 0 : " + Bob.pairs[0].pre_puzzle_key + " -> " + Bob.pairs[0].puzzle);
-console.log("Bob's pair 1 : " + Bob.pairs[1].pre_puzzle_key + " -> " + Bob.pairs[1].puzzle);
-console.log("Bob's pair 2 : " + Bob.pairs[2].pre_puzzle_key + " -> " + Bob.pairs[2].puzzle);
-console.log("Bob's pair 3 : " + Bob.pairs[3].pre_puzzle_key + " -> " + Bob.pairs[3].puzzle);
-console.log("Bob's pair 4 : " + Bob.pairs[4].pre_puzzle_key + " -> " + Bob.pairs[4].puzzle);
+for(var i = 0; i < N; i++){
+    console.log("Bob's pair " + i + " : " + Bob.pairs[i].pre_puzzle_key + " -> " + Bob.pairs[i].puzzle);
+}
 console.log("Bob's n : " + Bob.n);
+
+// Etape 4: decryptage d'une paire aléatoirement choisie.
+console.log("Etape 4: decryptage d'une paire aléatoirement choisie en cours...");
+var randIndex = randPairToDecrypt(N);
+var randPuzzleKey = genPuzzleKey(Bob.pairs[randIndex].pre_puzzle_key);
+var messageDec = decPuzzle(Bob.pairs[randIndex].puzzle, randPuzzleKey)
+Bob.secret_key = messageDec.substring(0, NB_BYTES);
+Bob.index = messageDec[NB_BYTES];
+
+console.log("Bob's dec = pre_puzzle_key: " + Bob.pairs[randIndex].pre_puzzle_key + " randPuzzleKey: " + randPuzzleKey);
+console.log("Bob's dec = message: " + messageDec);
+console.log("Bob's dec = secretKeyDec " + Bob.secret_key + " indexDec: " + Bob.index);
+
+// Etape 5: envoi de l'index déchiffré par Bob
+console.log("Etape 5: envoi de l'index déchiffré par Bob en cours...");
+Alice.receiveMsg(Bob.secret_key, Bob.index);
+
+var endTime = now();
+
+console.log("Alice's rec = secretKeyDec " + Alice.secret_key + " indexDec: " + Alice.index);
+
+console.log("Execution du protocole terminé!!");
+
+console.log("\nLe temps d'execution est de: " + (endTime - startTime).toFixed(3) + " milliseconds.");
